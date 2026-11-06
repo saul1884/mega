@@ -850,6 +850,7 @@ function Login({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [household, setHousehold] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -861,7 +862,7 @@ function Login({ onDone }: { onDone: () => void }) {
       const r = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, household, password }),
+        body: JSON.stringify({ mode, household, password, remember }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) setError(j.error || "Something went wrong.");
@@ -890,6 +891,10 @@ function Login({ onDone }: { onDone: () => void }) {
           <label htmlFor="pw" className="lbl">PASSWORD</label>
           <input id="pw" className="field" type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 16, fontWeight: 600, cursor: "pointer" }}>
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 22, height: 22, accentColor: "var(--rasp)" }} />
+          Keep me logged in
+        </label>
         {error && <p className="err">{error}</p>}
         <button type="submit" className="btn btn-rasp btn-big" disabled={busy} style={{ marginTop: 4, fontSize: 19 }}>
           {busy ? "…" : mode === "login" ? "LET'S EAT" : "SET UP OUR HOUSEHOLD"}

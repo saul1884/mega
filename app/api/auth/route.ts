@@ -8,6 +8,7 @@ const Body = z.object({
   mode: z.enum(["login", "signup", "logout"]),
   household: z.string().max(60).optional(),
   password: z.string().max(200).optional(),
+  remember: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
       insert into households (name, name_key, password_hash, categories)
       values (${household}, ${key}, ${hash}, ${db.json(DEFAULT_CATEGORIES)})
       returning id`;
-    await setSession(row.id);
+    await setSession(row.id, parsed.data.remember !== false);
     return NextResponse.json({ ok: true });
   }
 
@@ -55,6 +56,6 @@ export async function POST(req: Request) {
   if (!ok) {
     return NextResponse.json({ error: "That household name and password don't match." }, { status: 401 });
   }
-  await setSession(row.id);
+  await setSession(row.id, parsed.data.remember !== false);
   return NextResponse.json({ ok: true });
 }

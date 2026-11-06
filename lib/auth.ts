@@ -10,7 +10,7 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(s);
 }
 
-export async function setSession(householdId: number): Promise<void> {
+export async function setSession(householdId: number, remember = true): Promise<void> {
   const token = await new SignJWT({ hid: householdId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -22,7 +22,7 @@ export async function setSession(householdId: number): Promise<void> {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: ONE_YEAR,
+    ...(remember ? { maxAge: ONE_YEAR } : {}),
   });
 }
 
