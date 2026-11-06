@@ -3,7 +3,7 @@ import postgres from "postgres";
 const globalForDb = globalThis as unknown as { sql?: postgres.Sql; schemaReady?: Promise<void> };
 
 function url(): string {
-  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const u = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.STORAGE_URL;
   if (!u) throw new Error("DATABASE_URL is not set");
   return u;
 }
