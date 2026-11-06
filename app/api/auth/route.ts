@@ -49,7 +49,10 @@ export async function POST(req: Request) {
 
   const [row] = await db`select id, password_hash from households where name_key = ${key}`;
   const ok = row ? await bcrypt.compare(password, row.password_hash) : false;
-  if (!row || !ok) {
+  if (!row) {
+    return NextResponse.json({ error: "There's no household with that name yet. Tap “Set one up” below to create it." }, { status: 401 });
+  }
+  if (!ok) {
     return NextResponse.json({ error: "That household name and password don't match." }, { status: 401 });
   }
   await setSession(row.id);
