@@ -48,6 +48,35 @@ async function resizeImage(file: File): Promise<string> {
   }
 }
 
+const THINKING = ["Raiding the cookbooks…", "Checking what’s in season…", "Picking things that work on a busy week…", "Avoiding anything you’ve said no to…", "Plating up some ideas…"];
+
+function Thinking() {
+  const [i, setI] = useState(0);
+  const [secs, setSecs] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setInterval(() => setSecs((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    if (secs > 0 && secs % 3 === 0) setI((n) => (n + 1) % THINKING.length);
+  }, [secs]);
+  return (
+    <div ref={ref} className="loading" role="status" aria-live="polite">
+      <svg className="spin" width="56" height="56" viewBox="0 0 52 52" aria-hidden="true">
+        <circle cx="22" cy="28" r="15" fill="var(--rasp)" />
+        <rect x="34" y="24" width="16" height="7" rx="3.5" fill="var(--rasp)" />
+        <path d="M15 26c-1-6 7-8 11-5 5 3 4 11-1 13-6 2-9-2-10-8z" fill="#FFF1C9" />
+        <circle cx="22" cy="27" r="3.6" fill="var(--orange)" />
+      </svg>
+      <div className="caps" style={{ fontSize: 14, marginTop: 10 }}>COOKING UP IDEAS</div>
+      <div style={{ fontSize: 15, marginTop: 6, color: "var(--ink)" }}>{THINKING[i]}</div>
+      <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>{secs < 25 ? "Usually takes 15–30 seconds" : "Nearly there…"}</div>
+    </div>
+  );
+}
+
 export default function App() {
   const [auth, setAuth] = useState<Auth>("loading");
   const [data, setData] = useState<AppState | null>(null);
@@ -342,7 +371,7 @@ export default function App() {
   const PhotoButton = () => (
     <button type="button" className="btn btn-line" style={{ width: "100%" }} disabled={photoBusy} onClick={() => fileRef.current?.click()}>
       <Icon.camera />
-      {photoBusy ? "READING PHOTO…" : "ADD FROM A PHOTO"}
+      {photoBusy ? <><span className="spinner" aria-hidden="true" /> READING PHOTO…</> : "ADD FROM A PHOTO"}
     </button>
   );
 
@@ -436,7 +465,7 @@ export default function App() {
         <div className="scroll">
           <div className="btnrow">
             <button type="button" className="btn btn-ink" onClick={() => setDraft(newDraft())}><Icon.plus size={18} />ADD A MEAL</button>
-            <button type="button" className="btn btn-line" disabled={photoBusy} onClick={() => fileRef.current?.click()}><Icon.camera />{photoBusy ? "READING…" : "FROM A PHOTO"}</button>
+            <button type="button" className="btn btn-line" disabled={photoBusy} onClick={() => fileRef.current?.click()}>{photoBusy ? <span className="spinner" aria-hidden="true" /> : <Icon.camera />}{photoBusy ? "READING…" : "FROM A PHOTO"}</button>
           </div>
           {groups.map((g) => (
             <div key={g.title || "all"} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -455,7 +484,7 @@ export default function App() {
               </div>
               <p className="muted">Fresh ideas for {cat}. Add one to this week, or save it for later.</p>
               {ideasLoading[cat] ? (
-                <div className="loading caps" style={{ fontSize: 14 }}>COOKING UP IDEAS…</div>
+                <Thinking />
               ) : (
                 <>
                   {catIdeas.map((i) => <IdeaCard key={i.name} idea={i} />)}
@@ -463,7 +492,7 @@ export default function App() {
                   {!ideasError[cat] && catIdeas.length === 0 && <p className="muted">You’ve been through this batch. Ask for more below.</p>}
                 </>
               )}
-              <button type="button" className="btn btn-ink btn-big" disabled={!!ideasLoading[cat]} onClick={() => loadIdeas(cat, true)}>GIVE ME NEW IDEAS</button>
+              <button type="button" className="btn btn-ink btn-big" disabled={!!ideasLoading[cat]} onClick={() => loadIdeas(cat, true)}>{ideasLoading[cat] ? <><span className="spinner" aria-hidden="true" /> THINKING…</> : "GIVE ME NEW IDEAS"}</button>
             </>
           )}
         </div>
@@ -552,7 +581,7 @@ export default function App() {
         <div className="scroll">
           <PhotoButton />
           {moodRun ? <h2 className="sec">IDEAS FOR “{moodRun.toUpperCase()}”</h2> : <p className="muted">Type what you fancy this week, or tap a mood, and we’ll suggest some dinners.</p>}
-          {moodLoading && <div className="loading caps" style={{ fontSize: 14 }}>COOKING UP IDEAS…</div>}
+          {moodLoading && <Thinking />}
           {moodError && <p className="err">{moodError}</p>}
           {moodIdeas.map((i) => <IdeaCard key={i.name} idea={i} />)}
           {moodRun && !moodLoading && <button type="button" className="btn btn-ink btn-big" onClick={() => runMood(moodRun)}>GIVE ME NEW IDEAS</button>}
