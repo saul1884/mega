@@ -143,3 +143,40 @@ textarea.field { height: auto; min-height: 120px; padding: 12px 16px; font-size:
 .catrow { display: flex; align-items: center; gap: 10px; background: var(--card); border: 2px solid var(--ink); border-radius: 18px; padding: 10px 8px 10px 14px; }
 .catrow .col { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
 textarea.field { font-family: inherit; font-size: 16px; line-height: 1.4; padding-top: 12px; }
+
+/* ===== Refined theme (2026-11-07): bold coloured header, calm body, white cards ===== */
+/* Option B: Bold header, calm body. Keep one big colour moment per screen; everything below is quiet */
+:root { --cream: #FFF6E5; --card: #FFFFFF; --line: rgba(42,15,28,.10); }
+.hdr { border-radius: 0 0 28px 28px !important; padding-bottom: 22px !important; }
+.hdr .h1 { letter-spacing: .02em !important; }
+.hh { padding: 6px 11px !important; font-size: 11px !important; }
+.lbl, .sec { font-size: 11px !important; letter-spacing: .2em !important; }
+.sec { margin-top: 16px !important; opacity: .7; }
+.input, .field, .select { border: 0 !important; background: #fff !important; box-shadow: 0 2px 8px rgba(42,15,28,.08); }
+.tagline { letter-spacing: .1em !important; font-size: 10px !important; color: var(--rasp) !important; }
+.grid2 { gap: 10px !important; }
+.hdr .fchip { border: 0 !important; background: var(--cream) !important; color: var(--ink) !important; }
+.hdr .fchip.on { background: var(--ink) !important; color: var(--cream-text) !important; }
+.fchip { border: 1px solid var(--line) !important; height: 36px !important; }
+.btn-line { border: 1px solid rgba(42,15,28,.2) !important; background: #fff !important; }
+.btn-big { height: 54px !important; font-size: 15px !important; }
+.divider { border-top: 1px solid var(--line) !important; }
+.tabs { background: #fff !important; border-top: 0 !important; box-shadow: 0 -4px 20px rgba(42,15,28,.06); }
+.tab { font-weight: 500 !important; }
+section[style*="border: 2px solid"] { border: 0 !important; background: #fff; box-shadow: 0 2px 10px rgba(42,15,28,.07); }
+.check { border: 1.5px solid rgba(42,15,28,.2) !important; background: #fff !important; }
+
+/* From option A: white cards with a hairline edge, tiles with a colour dot */
+.card, .pcard, .catrow, .idea { border: 0 !important; background: #fff !important; box-shadow: 0 1px 3px rgba(42,15,28,.07), 0 0 0 1px var(--line); border-radius: 18px !important; }
+.card.dashed, .idea { box-shadow: inset 0 0 0 1.5px rgba(42,15,28,.16) !important; background: rgba(255,255,255,.6) !important; }
+.tile { background: #fff !important; color: var(--ink) !important; border: 0 !important; box-shadow: 0 1px 3px rgba(42,15,28,.06), 0 0 0 1px var(--line); font-family: var(--body) !important; text-transform: none !important; letter-spacing: 0 !important; font-size: 15px !important; font-weight: 700 !important; gap: 10px; min-height: 56px !important; }
+.tile::before { content: ""; width: 12px; height: 12px; border-radius: 99px; background: var(--dotc, var(--orange)); flex-shrink: 0; }
+.t-orange { --dotc: var(--orange); } .t-rasp { --dotc: var(--rasp); } .t-pink { --dotc: var(--pink); } .t-ink { --dotc: var(--ink); }
+.t-dash { --dotc: transparent; box-shadow: inset 0 0 0 1.5px rgba(42,15,28,.22) !important; background: transparent !important; }
+.t-dash::before { box-shadow: inset 0 0 0 2px var(--ink); }
+
+.daychip { border: 1px solid rgba(42,15,28,.18) !important; background: #fff !important; }
+.daychip.on { background: var(--rasp) !important; color: var(--cream-text) !important; border-color: var(--rasp) !important; }
+.box { border-width: 1.5px !important; border-color: rgba(42,15,28,.45) !important; }
+.shoprow, .weekrow, .ing { border-bottom-color: var(--line) !important; }
+.sheet-body { background: var(--cream); }
