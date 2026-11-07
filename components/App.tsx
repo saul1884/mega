@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppState, Idea, Meal, PhotoResult } from "@/lib/types";
 import { addDays, daysBetween, lastMadeText, longLabel, shortDay, todayISO, weekRange } from "@/lib/dates";
 import { Icon, LoginArt, Thumb, shapeFor, tileClass } from "./icons";
+import { TastesFlow } from "./Tastes";
+import { EMPTY_TASTES, type Tastes } from "@/lib/tastes";
 
 type Screen = "home" | "meals" | "meal" | "inspo" | "basket" | "plan" | "shop";
 type Auth = "loading" | "out" | "in";
@@ -99,6 +101,7 @@ export default function App() {
   const [extraText, setExtraText] = useState("");
   const [startPick, setStartPick] = useState(todayISO());
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [tastesOpen, setTastesOpen] = useState(false);
   const [catSheet, setCatSheet] = useState<
     null | { mode: "manage" } | { mode: "add"; name: string; description: string } | { mode: "edit"; name: string; description: string }
   >(null);
@@ -341,7 +344,7 @@ export default function App() {
     return <div className="app" style={{ background: "var(--orange)", alignItems: "center", justifyContent: "center" }}><p className="caps">LOADING…</p></div>;
   }
   if (auth === "out" || !data) {
-    return <Login onDone={() => load()} />;
+    return <Login onDone={(mode) => { load(); if (mode === "signup") setTastesOpen(true); }} />;
   }
 
   // ---------- shared bits ----------
@@ -453,6 +456,17 @@ export default function App() {
               <button type="button" className="round small" aria-label={`Add ${nudge.name} to this week`} onClick={() => act({ type: "toggleWeek", mealId: nudge.id }, "Added to this week")}><Icon.plus /></button>
             </section>
           )}
+          {data.tastes === null && (
+            <section className="tastecard">
+              <span className="caps" style={{ fontSize: 12, color: "var(--rasp)" }}>BETTER IDEAS IN A MINUTE</span>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>Tell us your tastes</span>
+              <span className="small">Who’s eating, your diet and anything you never want to see, so the ideas suit you.</span>
+              <div className="btnrow">
+                <button type="button" className="btn btn-rasp" onClick={() => setTastesOpen(true)}>LET’S GO</button>
+                <button type="button" className="btn-text" style={{ color: "var(--muted)" }} onClick={() => act({ type: "setTastes", tastes: { ...EMPTY_TASTES, skipped: true } })}>NOT NOW</button>
+              </div>
+            </section>
+          )}
           <h2 className="sec">BROWSE OUR MEALS</h2>
           <div className="grid2">
             {categories.map((c, i) => (
@@ -463,6 +477,9 @@ export default function App() {
             <button type="button" className="btn-text" onClick={() => setCatSheet({ mode: "add", name: "", description: "" })}>+ NEW CATEGORY</button>
             <button type="button" className="btn-text" onClick={() => setCatSheet({ mode: "manage" })}>EDIT CATEGORIES</button>
           </div>
+          {data.tastes !== null && (
+            <button type="button" className="btn-text" onClick={() => setTastesOpen(true)}>{data.tastes.skipped ? "TELL US YOUR TASTES" : "OUR TASTES"}</button>
+          )}
         </div>
       </>
     );
@@ -870,6 +887,21 @@ export default function App() {
           </div>
         </div>
       )}
+      {tastesOpen && (
+        <TastesFlow
+          initial={data.tastes}
+          busy={busy}
+          onClose={() => setTastesOpen(false)}
+          onSkip={async () => { setTastesOpen(false); if (data.tastes === null) await act({ type: "setTastes", tastes: { ...EMPTY_TASTES, skipped: true } }); }}
+          onSave={async (t: Tastes) => {
+            setBusy(true);
+            await act({ type: "setTastes", tastes: { ...t, skipped: false } }, "Saved. Your ideas will now fit your tastes.");
+            setIdeas({});
+            setBusy(false);
+            setTastesOpen(false);
+          }}
+        />
+      )}
       {catSheet && (
         <div className="sheet" role="dialog" aria-modal="true" aria-label="Categories" onClick={(e) => e.target === e.currentTarget && setCatSheet(null)}>
           <div className="sheet-body">
@@ -916,7 +948,7 @@ export default function App() {
   );
 }
 
-function Login({ onDone }: { onDone: () => void }) {
+function Login({ onDone }: { onDone: (mode: "login" | "signup") => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [household, setHousehold] = useState("");
   const [password, setPassword] = useState("");
@@ -936,7 +968,7 @@ function Login({ onDone }: { onDone: () => void }) {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) setError(j.error || "Something went wrong.");
-      else onDone();
+      else onDone(mode);
     } catch {
       setError("You seem to be offline.");
     } finally {

@@ -1,3 +1,4 @@
+import type { Tastes } from "@/lib/tastes";
 import { normalizeCategories } from "@/lib/categories";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,12 +24,12 @@ export async function POST(req: Request) {
 
   const [, mime, base64] = parsed.data.dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,(.*)$/)!;
   const mediaType = mime as "image/jpeg" | "image/png" | "image/webp";
-  const [h] = await sql()`select categories from households where id = ${hid}`;
+  const [h] = await sql()`select categories, tastes from households where id = ${hid}`;
   const categories = normalizeCategories(h?.categories);
 
   try {
     const [read, photoUrl] = await Promise.all([
-      readRecipePhoto({ base64, mediaType, categories }),
+      readRecipePhoto({ base64, mediaType, categories, tastes: (h?.tastes ?? null) as Tastes | null }),
       process.env.BLOB_READ_WRITE_TOKEN
         ? put(`recipes/${hid}/${Date.now()}.${mime.split("/")[1]}`, Buffer.from(base64, "base64"), {
             access: "public",

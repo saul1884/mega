@@ -42,6 +42,20 @@ const Action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("addCategory"), name: z.string().trim().min(1).max(40), description: z.string().trim().max(300).default("") }),
   z.object({ type: z.literal("updateCategory"), name: z.string().min(1).max(40), description: z.string().trim().max(300) }),
   z.object({ type: z.literal("removeCategory"), name: z.string().min(1).max(40) }),
+  z.object({
+    type: z.literal("setTastes"),
+    tastes: z.object({
+      adults: z.number().int().min(1).max(12),
+      kidAges: z.array(z.number().int().min(0).max(17)).max(10),
+      diet: z.enum(["none", "vegetarian", "pescatarian", "vegan"]),
+      dietExtras: z.array(z.string().trim().min(1).max(40)).max(12),
+      never: z.array(z.string().trim().min(1).max(40)).max(40),
+      time: z.enum(["quick", "medium", "relaxed"]),
+      adventure: z.enum(["familiar", "mix", "surprise"]).optional(),
+      notes: z.string().trim().max(500),
+      skipped: z.boolean().optional(),
+    }),
+  }),
 ]);
 
 export async function POST(req: Request) {
@@ -144,6 +158,11 @@ export async function POST(req: Request) {
       await db`delete from idea_cache where household_id = ${hid} and category = ${a.name}`;
       break;
     }
+    case "setTastes":
+      await db`update households set tastes = ${db.json(a.tastes)} where id = ${hid}`;
+      // Old ideas were made without these tastes.
+      if (!a.tastes.skipped) await db`delete from idea_cache where household_id = ${hid}`;
+      break;
     case "removeCategory": {
       // Meals stay; they just lose this tag.
       await db.begin(async (tx) => {

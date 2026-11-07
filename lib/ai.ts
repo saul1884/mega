@@ -3,6 +3,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { Idea } from "./types";
 import { describeCategories, type Category } from "./categories";
+import { householdContext, type Tastes } from "./tastes";
 
 const MODEL = "claude-opus-5-5";
 
@@ -12,7 +13,6 @@ function anthropic(): Anthropic {
   return client;
 }
 
-const HOUSEHOLD_CONTEXT = `You suggest meals for a UK household of two adults who like good food but are busy, so weekday meals should be easy. They want food that is fresh, varied and exciting, not the same stir fries and chicken traybakes every week. They shop at Sainsbury's, so use ingredients you can buy in a UK supermarket and British names (courgette, coriander, aubergine, mince). Main ingredients only: no salt, pepper, oil or water.`;
 
 const IdeaSchema = z.object({
   name: z.string().describe("Short dish name, max 6 words"),
@@ -59,19 +59,22 @@ export async function categoryIdeas(opts: {
   category: string;
   categories: Category[];
   avoid: string[];
+  tastes: Tastes | null;
   count?: number;
 }): Promise<Idea[]> {
   const count = opts.count ?? 10;
   const cat = opts.categories.find((c) => c.name === opts.category);
   const isKids = !!cat?.kids;
+  const ages = opts.tastes?.kidAges ?? [];
+  const kidAges = ages.length ? ` The children are ${ages.map((a) => (a === 0 ? "under 1" : `${a}`)).join(", ")} years old; pitch textures and flavours to suit.` : "";
   const about = cat?.description ? ` The household describes this category as: "${cat.description}".` : "";
   const brief = isKids
-    ? `Suggest ${count} meals for the category "${opts.category}", which is for their children.${about} Mix lunches and dinners (about half each), set "obie" to Lunch or Dinner, and tag each with "${opts.category}". Keep them simple, mild and quick, but not boring.`
-    : `Suggest ${count} dinner ideas for two adults that fit the category "${opts.category}".${about} Every idea must be tagged "${opts.category}"; add one more category from the list only if it clearly fits. Make them varied across cuisines and main ingredients.`;
+    ? `Suggest ${count} meals for the category "${opts.category}", which is for their children.${about}${kidAges} Mix lunches and dinners (about half each), set "obie" to Lunch or Dinner, and tag each with "${opts.category}". Keep them simple, mild and quick, but not boring.`
+    : `Suggest ${count} dinner ideas for the grown-ups that fit the category "${opts.category}".${about} Every idea must be tagged "${opts.category}"; add one more category from the list only if it clearly fits. Make them varied across cuisines and main ingredients.`;
   const avoid = opts.avoid.length
     ? `\n\nDo not suggest any of these (they already have them, or said no): ${opts.avoid.slice(0, 200).join("; ")}.`
     : "";
-  const raw = await ask(IdeasSchema, HOUSEHOLD_CONTEXT, [
+  const raw = await ask(IdeasSchema, householdContext(opts.tastes), [
     { type: "text", text: `Their categories:\n${describeCategories(opts.categories)}\n\n${brief}${avoid}` },
   ]);
   return cleanIdeas(raw, opts.categories, count).map((i) => ({
@@ -81,15 +84,15 @@ export async function categoryIdeas(opts: {
   }));
 }
 
-export async function moodIdeas(opts: { mood: string; categories: Category[]; avoid: string[] }): Promise<Idea[]> {
+export async function moodIdeas(opts: { mood: string; categories: Category[]; avoid: string[]; tastes: Tastes | null }): Promise<Idea[]> {
   const grownUp = opts.categories.filter((c) => !c.kids);
   const avoid = opts.avoid.length
     ? `\n\nDo not suggest any of these (they already have them, or said no): ${opts.avoid.slice(0, 200).join("; ")}.`
     : "";
-  const raw = await ask(IdeasSchema, HOUSEHOLD_CONTEXT, [
+  const raw = await ask(IdeasSchema, householdContext(opts.tastes), [
     {
       type: "text",
-      text: `Their categories:\n${describeCategories(grownUp)}\n\nThis week they're in the mood for: "${opts.mood}". Suggest 6 dinner ideas for two adults that match that mood, each tagged with 1-2 categories from the list. Set "obie" to null.${avoid}`,
+      text: `Their categories:\n${describeCategories(grownUp)}\n\nThis week they're in the mood for: "${opts.mood}". Suggest 6 dinner ideas for the grown-ups that match that mood, each tagged with 1-2 categories from the list. Set "obie" to null.${avoid}`,
     },
   ]);
   return cleanIdeas(raw, grownUp, 6).map((i) => ({ ...i, obie: null }));
@@ -99,8 +102,9 @@ export async function readRecipePhoto(opts: {
   base64: string;
   mediaType: "image/jpeg" | "image/png" | "image/webp";
   categories: Category[];
+  tastes: Tastes | null;
 }) {
-  const raw = await ask(PhotoSchema, HOUSEHOLD_CONTEXT, [
+  const raw = await ask(PhotoSchema, householdContext(opts.tastes), [
     { type: "image", source: { type: "base64", media_type: opts.mediaType, data: opts.base64 } },
     {
       type: "text",

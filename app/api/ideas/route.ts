@@ -1,3 +1,4 @@
+import type { Tastes } from "@/lib/tastes";
 import { normalizeCategories } from "@/lib/categories";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -21,7 +22,8 @@ export async function POST(req: Request) {
   await ensureSchema();
   const db = sql();
 
-  const [h] = await db`select categories from households where id = ${hid}`;
+  const [h] = await db`select categories, tastes from households where id = ${hid}`;
+  const tastes = (h?.tastes ?? null) as Tastes | null;
   const categories = normalizeCategories(h?.categories);
   const [meals, dismissed] = await Promise.all([
     db`select name from meals where household_id = ${hid}`,
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
 
   try {
     if ("mood" in parsed.data) {
-      const ideas = await moodIdeas({ mood: parsed.data.mood, categories, avoid: avoidNames });
+      const ideas = await moodIdeas({ mood: parsed.data.mood, categories, avoid: avoidNames, tastes });
       return NextResponse.json({ ideas: fresh(ideas) });
     }
 
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ideas: fresh(cached) });
     }
 
-    const ideas = fresh(await categoryIdeas({ category, categories, avoid: [...avoidNames, ...seen] }));
+    const ideas = fresh(await categoryIdeas({ category, categories, avoid: [...avoidNames, ...seen], tastes }));
     const newSeen = [...seen, ...cached.map((i) => i.name)].slice(-150);
     await db`
       insert into idea_cache (household_id, category, ideas, seen, updated_at)

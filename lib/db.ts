@@ -37,6 +37,7 @@ export function ensureSchema(): Promise<void> {
           start_date date,
           created_at timestamptz not null default now()
         )`;
+      await db`alter table households add column if not exists tastes jsonb`;
       await db`
         create table if not exists meals (
           id uuid primary key default gen_random_uuid(),

@@ -15,7 +15,7 @@ function isoDate(d: unknown): string | null {
 
 export async function loadState(hid: number): Promise<AppState | null> {
   const db = sql();
-  const [h] = await db`select name, categories, start_date::text as start_date from households where id = ${hid}`;
+  const [h] = await db`select name, categories, tastes, start_date::text as start_date from households where id = ${hid}`;
   if (!h) return null;
   const [mealRows, planRows, checkRows, extraRows] = await Promise.all([
     db`select id, name, tags, ingredients, stars, tried, last_made::text as last_made, obie, photo_url
@@ -38,6 +38,7 @@ export async function loadState(hid: number): Promise<AppState | null> {
   return {
     household: h.name,
     categories: normalizeCategories(h.categories),
+    tastes: h.tastes ?? null,
     meals,
     startDate: isoDate(h.start_date),
     plan: planRows.map((r) => ({ mealId: r.meal_id, day: r.day, made: r.made })),

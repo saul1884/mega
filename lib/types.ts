@@ -1,4 +1,5 @@
 import type { Category } from "./categories";
+import type { Tastes } from "./tastes";
 
 export type { Category };
 
@@ -21,6 +22,7 @@ export type Extra = { id: number; name: string };
 export type AppState = {
   household: string;
   categories: Category[];
+  tastes: Tastes | null;
   meals: Meal[];
   startDate: string | null; // YYYY-MM-DD
   plan: PlanItem[];
