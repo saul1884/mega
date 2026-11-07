@@ -1,3 +1,7 @@
+import type { Category } from "./categories";
+
+export type { Category };
+
 export type Meal = {
   id: string;
   name: string;
@@ -16,7 +20,7 @@ export type Extra = { id: number; name: string };
 
 export type AppState = {
   household: string;
-  categories: string[];
+  categories: Category[];
   meals: Meal[];
   startDate: string | null; // YYYY-MM-DD
   plan: PlanItem[];

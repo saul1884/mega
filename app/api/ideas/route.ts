@@ -1,3 +1,4 @@
+import { normalizeCategories } from "@/lib/categories";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureSchema, nameKey, sql } from "@/lib/db";
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   const db = sql();
 
   const [h] = await db`select categories from households where id = ${hid}`;
-  const categories: string[] = h?.categories ?? [];
+  const categories = normalizeCategories(h?.categories);
   const [meals, dismissed] = await Promise.all([
     db`select name from meals where household_id = ${hid}`,
     db`select name_key from dismissed where household_id = ${hid}`,
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
     }
 
     const { category, refresh } = parsed.data;
-    if (!categories.includes(category)) return NextResponse.json({ error: "Unknown category" }, { status: 400 });
+    if (!categories.some((c) => c.name === category)) return NextResponse.json({ error: "Unknown category" }, { status: 400 });
 
     const [cache] = await db`select ideas, seen from idea_cache where household_id = ${hid} and category = ${category}`;
     const cached: Idea[] = cache?.ideas ?? [];

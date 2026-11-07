@@ -10,6 +10,9 @@ const SHAPES: Record<string, Shape> = {
   "Weekend specials": { bg: "#F7922A", fg: "#2A0F1C", hdr: "hdr hdr-orange", hfg: "#C8175D", d: "M26 9l5 12 13 1-10 8 3 13-11-7-11 7 3-13-10-8 13-1z" },
   "A little bit fancy": { bg: "#2A0F1C", fg: "#EC4D6B", hdr: "hdr hdr-ink", hfg: "#EC4D6B", d: "M26 8l14 18-14 18-14-18z" },
   "Solo night in": { bg: "#C8175D", fg: "#FFF1C9", hdr: "hdr hdr-rasp", hfg: "#FFF1C9", d: "M30 10a16 16 0 1 0 12 26a13 13 0 0 1-12-26z" },
+  "Slow cooker": { bg: "#F7922A", fg: "#C8175D", hdr: "hdr hdr-orange", hfg: "#C8175D", d: "M10 22h32v12a8 8 0 0 1-8 8H18a8 8 0 0 1-8-8z M7 21h38v4H7z M21 14h10v6H21z" },
+  Vegetarian: { bg: "#2A0F1C", fg: "#EC4D6B", hdr: "hdr hdr-ink", hfg: "#EC4D6B", d: "M26 44c-8 0-14-7-14-16 0-6 4-11 9-12 2 0 4 1 5 2 1-1 3-2 5-2 5 1 9 6 9 12 0 9-6 16-14 16z M25 16c0-4 2-7 6-9" },
+  Kids: { bg: "#EC4D6B", fg: "#FFF1C9", hdr: "hdr hdr-pink", hfg: "#FFF1C9", d: "M10 26a16 16 0 1 0 32 0a16 16 0 1 0 -32 0z" },
   "Obie meals": { bg: "#EC4D6B", fg: "#FFF1C9", hdr: "hdr hdr-pink", hfg: "#FFF1C9", d: "M10 26a16 16 0 1 0 32 0a16 16 0 1 0 -32 0z" },
 };
 const FALLBACK: Shape = { bg: "#F7922A", fg: "#2A0F1C", hdr: "hdr hdr-orange", hfg: "#C8175D", d: "M14 30a12 12 0 0 1 24 0z M10 32h32v4H10z M24 14h4v6h-4z" };
@@ -19,8 +22,8 @@ export function shapeFor(tag: string | undefined): Shape {
 }
 
 const TILE_CLASSES = ["tile t-orange", "tile t-rasp", "tile t-pink", "tile t-ink", "tile t-rasp", "tile t-orange", "tile t-ink"];
-export function tileClass(cat: string, index: number): string {
-  if (cat === "Obie meals") return "tile t-dash";
+export function tileClass(cat: string, index: number, kids = false): string {
+  if (kids) return "tile t-dash";
   return TILE_CLASSES[index % TILE_CLASSES.length];
 }
 

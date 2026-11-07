@@ -17,7 +17,6 @@ type Draft = {
   addToWeek: boolean;
 };
 
-const OBIE = "Obie meals";
 const MOODS = ["Spicy", "BBQ", "Quick", "Cosy", "Healthy", "Fancy"];
 
 function key(s: string) {
@@ -100,6 +99,9 @@ export default function App() {
   const [extraText, setExtraText] = useState("");
   const [startPick, setStartPick] = useState(todayISO());
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [catSheet, setCatSheet] = useState<
+    null | { mode: "manage" } | { mode: "add"; name: string; description: string } | { mode: "edit"; name: string; description: string }
+  >(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const inFlight = useRef(0);
@@ -173,7 +175,38 @@ export default function App() {
   const weekOver = !start || daysBetween(start, today) > 6;
   const weekStart = start ?? today;
   const week = [0, 1, 2, 3, 4, 5, 6].map((k) => addDays(weekStart, k));
-  const categories = data?.categories ?? [];
+  const catList = data?.categories ?? [];
+  const categories = catList.map((c) => c.name);
+  const kidsCats = new Set(catList.filter((c) => c.kids).map((c) => c.name));
+  const isKids = (tags: string[]) => tags.some((t) => kidsCats.has(t));
+  const catDesc = (name: string) => catList.find((c) => c.name === name)?.description ?? "";
+
+  if (cat !== "All" && data && !categories.includes(cat)) setCat("All");
+
+  const saveCategory = async () => {
+    if (!catSheet || catSheet.mode === "manage") return;
+    const name = catSheet.name.trim();
+    const description = catSheet.description.trim();
+    if (catSheet.mode === "add") {
+      if (!name) return flash("Give the category a name first.");
+      if (categories.some((c) => c.toLowerCase() === name.toLowerCase())) return flash("You already have a category called that.");
+      if (!description) return flash("Add a short description so the ideas fit.");
+      await act({ type: "addCategory", name, description }, "Category added");
+    } else {
+      await act({ type: "updateCategory", name: catSheet.name, description }, "Description saved");
+      setIdeas((s) => { const n = { ...s }; delete n[catSheet.name]; return n; });
+    }
+    setCatSheet({ mode: "manage" });
+  };
+
+  const removeCategory = async (name: string) => {
+    const n = meals.filter((m) => m.tags.includes(name)).length;
+    const msg = n
+      ? `Remove "${name}"? Your ${n} meal${n === 1 ? "" : "s"} in it will stay in Our meals, just without this category.`
+      : `Remove "${name}"?`;
+    if (!window.confirm(msg)) return;
+    await act({ type: "removeCategory", name }, "Category removed");
+  };
 
   const go = (s: Screen) => {
     setScreen(s);
@@ -291,7 +324,7 @@ export default function App() {
     const name = draft.name.trim();
     if (!name) return flash("Give the meal a name first.");
     const ingredients = draft.ingredients.split(/\n|,/).map((s) => s.trim()).filter(Boolean);
-    const obie = draft.tags.includes(OBIE) ? draft.obie : null;
+    const obie = isKids(draft.tags) ? draft.obie : null;
     if (draft.id) {
       await act({ type: "updateMeal", id: draft.id, name, tags: draft.tags, ingredients }, "Saved");
     } else {
@@ -313,7 +346,7 @@ export default function App() {
 
   // ---------- shared bits ----------
   const deco = (m: Meal) => ({
-    tagLine: m.obie ? `Obie · ${m.obie}` : m.tags.join(" · "),
+    tagLine: m.obie && isKids(m.tags) ? `${m.tags.find((t) => kidsCats.has(t))} · ${m.obie}` : m.tags.join(" · "),
     inWeek: inPlan.has(m.id),
   });
 
@@ -423,29 +456,23 @@ export default function App() {
           <h2 className="sec">BROWSE OUR MEALS</h2>
           <div className="grid2">
             {categories.map((c, i) => (
-              <button key={c} type="button" className={tileClass(c, i)} onClick={() => { setCat(c); go("meals"); }}>{c}</button>
+              <button key={c} type="button" className={tileClass(c, i, kidsCats.has(c))} onClick={() => { setCat(c); go("meals"); }}>{c}</button>
             ))}
           </div>
-          <button
-            type="button"
-            className="btn-text"
-            onClick={() => {
-              const n = window.prompt("Name your new category");
-              if (n && n.trim()) act({ type: "addCategory", name: n.trim() }, "Category added");
-            }}
-          >
-            + NEW CATEGORY
-          </button>
+          <div className="btnrow" style={{ justifyContent: "center", gap: 18 }}>
+            <button type="button" className="btn-text" onClick={() => setCatSheet({ mode: "add", name: "", description: "" })}>+ NEW CATEGORY</button>
+            <button type="button" className="btn-text" onClick={() => setCatSheet({ mode: "manage" })}>EDIT CATEGORIES</button>
+          </div>
         </div>
       </>
     );
   }
 
   if (screen === "meals") {
-    const list = meals.filter((m) => (cat === "All" ? !m.tags.includes(OBIE) : m.tags.includes(cat)));
+    const list = meals.filter((m) => (cat === "All" ? !isKids(m.tags) : m.tags.includes(cat)));
     const sorted = [...list].sort((a, b) => (a.tried === b.tried ? b.stars - a.stars : a.tried ? 1 : -1));
     const groups =
-      cat === OBIE
+      kidsCats.has(cat)
         ? (["Lunch", "Dinner"] as const).map((t) => ({ title: t, items: sorted.filter((m) => (m.obie ?? "Dinner") === t) }))
         : [{ title: cat === "All" ? "" : "Your meals", items: sorted }];
     const catIdeas = ideas[cat] ?? [];
@@ -454,7 +481,7 @@ export default function App() {
         <header className="hdr hdr-orange" style={{ paddingBottom: 16 }}>
           <div className="toprow">
             <h1 className="h1" style={{ fontSize: 34 }}>OUR MEALS</h1>
-            <span className="hh">{(() => { const n = meals.filter((m) => !m.tags.includes(OBIE)).length; return `${n} ${n === 1 ? "MEAL" : "MEALS"}`; })()}</span>
+            <span className="hh">{(() => { const n = meals.filter((m) => !isKids(m.tags)).length; return `${n} ${n === 1 ? "MEAL" : "MEALS"}`; })()}</span>
           </div>
           <div className="chips">
             {["All", ...categories].map((c) => (
@@ -467,6 +494,7 @@ export default function App() {
             <button type="button" className="btn btn-ink" onClick={() => setDraft(newDraft())}><Icon.plus size={18} />ADD A MEAL</button>
             <button type="button" className="btn btn-line" disabled={photoBusy} onClick={() => fileRef.current?.click()}>{photoBusy ? <span className="spinner" aria-hidden="true" /> : <Icon.camera />}{photoBusy ? "READING…" : "FROM A PHOTO"}</button>
           </div>
+          {cat !== "All" && catDesc(cat) && <p className="muted" style={{ margin: 0 }}>{catDesc(cat)}</p>}
           {groups.map((g) => (
             <div key={g.title || "all"} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {g.title && <h2 className="sec">{g.title}</h2>}
@@ -822,9 +850,9 @@ export default function App() {
                 );
               })}
             </div>
-            {draft.tags.includes(OBIE) && (
+            {isKids(draft.tags) && (
               <div className="btnrow">
-                <span className="lbl">FOR OBIE’S</span>
+                <span className="lbl">FOR THE KIDS’</span>
                 {(["Lunch", "Dinner"] as const).map((o) => (
                   <button key={o} type="button" aria-pressed={draft.obie === o} className={draft.obie === o ? "fchip on" : "fchip"} onClick={() => setDraft({ ...draft, obie: o })}>{o}</button>
                 ))}
@@ -839,6 +867,48 @@ export default function App() {
               </label>
             )}
             <button type="button" className="btn btn-rasp btn-big" disabled={busy} onClick={async () => { setBusy(true); await saveDraft(); setBusy(false); }}>SAVE</button>
+          </div>
+        </div>
+      )}
+      {catSheet && (
+        <div className="sheet" role="dialog" aria-modal="true" aria-label="Categories" onClick={(e) => e.target === e.currentTarget && setCatSheet(null)}>
+          <div className="sheet-body">
+            <div className="toprow">
+              <h2 className="h1" style={{ fontSize: 26 }}>{catSheet.mode === "manage" ? "CATEGORIES" : catSheet.mode === "add" ? "NEW CATEGORY" : "EDIT CATEGORY"}</h2>
+              <button type="button" className="iconbtn" aria-label="Close" onClick={() => setCatSheet(null)}><Icon.x /></button>
+            </div>
+            {catSheet.mode === "manage" ? (
+              <>
+                <p className="muted" style={{ margin: 0 }}>Tap a category to change its description. The AI uses it to pick ideas.</p>
+                {catList.map((c) => (
+                  <div key={c.name} className="catrow">
+                    <button type="button" className="col" style={{ textAlign: "left" }} onClick={() => setCatSheet({ mode: "edit", name: c.name, description: c.description })}>
+                      <span className="mname">{c.name}</span>
+                      <span className="small">{c.description || "No description yet. Tap to add one."}</span>
+                    </button>
+                    <button type="button" className="iconbtn ghost" aria-label={`Remove ${c.name}`} onClick={() => removeCategory(c.name)}><Icon.x size={18} /></button>
+                  </div>
+                ))}
+                {catList.length === 0 && <p className="muted">No categories yet.</p>}
+                <button type="button" className="btn btn-ink btn-big" onClick={() => setCatSheet({ mode: "add", name: "", description: "" })}><Icon.plus size={18} />NEW CATEGORY</button>
+              </>
+            ) : (
+              <>
+                {catSheet.mode === "add" ? (
+                  <>
+                    <label htmlFor="cname" className="lbl">NAME</label>
+                    <input id="cname" className="field" maxLength={40} value={catSheet.name} onChange={(e) => setCatSheet({ ...catSheet, name: e.target.value })} placeholder="e.g. Fakeaway Friday" />
+                  </>
+                ) : (
+                  <p className="mname" style={{ margin: 0 }}>{catSheet.name}</p>
+                )}
+                <label htmlFor="cdesc" className="lbl">WHAT’S IT FOR?</label>
+                <textarea id="cdesc" className="field" maxLength={300} value={catSheet.description} onChange={(e) => setCatSheet({ ...catSheet, description: e.target.value })} placeholder="e.g. Takeaway favourites made at home: curries, burgers, kebabs. Quick and a bit naughty." />
+                <p className="small" style={{ margin: 0 }}>A sentence or two is plenty. It’s what the AI reads when it suggests ideas for this category.</p>
+                <button type="button" className="btn btn-rasp btn-big" disabled={busy} onClick={async () => { setBusy(true); await saveCategory(); setBusy(false); }}>SAVE</button>
+                <button type="button" className="btn-text" onClick={() => setCatSheet({ mode: "manage" })}>BACK TO ALL CATEGORIES</button>
+              </>
+            )}
           </div>
         </div>
       )}

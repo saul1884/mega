@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { DEFAULT_CATEGORIES, ensureSchema, nameKey, sql } from "@/lib/db";
+import { ensureSchema, nameKey, sql } from "@/lib/db";
+import { DEFAULT_CATEGORIES } from "@/lib/categories";
 import { clearSession, setSession } from "@/lib/auth";
 
 const Body = z.object({

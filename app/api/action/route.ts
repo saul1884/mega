@@ -1,3 +1,4 @@
+import { normalizeCategories, type Category } from "@/lib/categories";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureSchema, nameKey, sql } from "@/lib/db";
@@ -38,7 +39,9 @@ const Action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("toggleHave"), name, got: z.boolean() }),
   z.object({ type: z.literal("addExtra"), name }),
   z.object({ type: z.literal("removeExtra"), id: z.number().int() }),
-  z.object({ type: z.literal("addCategory"), name: z.string().trim().min(1).max(40) }),
+  z.object({ type: z.literal("addCategory"), name: z.string().trim().min(1).max(40), description: z.string().trim().max(300).default("") }),
+  z.object({ type: z.literal("updateCategory"), name: z.string().min(1).max(40), description: z.string().trim().max(300) }),
+  z.object({ type: z.literal("removeCategory"), name: z.string().min(1).max(40) }),
 ]);
 
 export async function POST(req: Request) {
@@ -127,10 +130,29 @@ export async function POST(req: Request) {
       break;
     case "addCategory": {
       const [h] = await db`select categories from households where id = ${hid}`;
-      const cats: string[] = h?.categories ?? [];
-      if (!cats.some((c) => nameKey(c) === nameKey(a.name))) {
-        await db`update households set categories = ${db.json([...cats, a.name])} where id = ${hid}`;
+      const cats = normalizeCategories(h?.categories);
+      if (!cats.some((c) => nameKey(c.name) === nameKey(a.name))) {
+        const next: Category[] = [...cats, { name: a.name, description: a.description }];
+        await db`update households set categories = ${db.json(next)} where id = ${hid}`;
       }
+      break;
+    }
+    case "updateCategory": {
+      const [h] = await db`select categories from households where id = ${hid}`;
+      const next = normalizeCategories(h?.categories).map((c) => (c.name === a.name ? { ...c, description: a.description } : c));
+      await db`update households set categories = ${db.json(next)} where id = ${hid}`;
+      await db`delete from idea_cache where household_id = ${hid} and category = ${a.name}`;
+      break;
+    }
+    case "removeCategory": {
+      // Meals stay; they just lose this tag.
+      await db.begin(async (tx) => {
+        const [h] = await tx`select categories from households where id = ${hid} for update`;
+        const next = normalizeCategories(h?.categories).filter((c) => c.name !== a.name);
+        await tx`update households set categories = ${tx.json(next)} where id = ${hid}`;
+        await tx`update meals set tags = tags - ${a.name}::text where household_id = ${hid} and tags ? ${a.name}`;
+        await tx`delete from idea_cache where household_id = ${hid} and category = ${a.name}`;
+      });
       break;
     }
   }

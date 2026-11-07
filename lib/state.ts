@@ -1,3 +1,4 @@
+import { normalizeCategories } from "@/lib/categories";
 import { sql } from "./db";
 import type { AppState, Meal } from "./types";
 
@@ -36,7 +37,7 @@ export async function loadState(hid: number): Promise<AppState | null> {
   }));
   return {
     household: h.name,
-    categories: h.categories,
+    categories: normalizeCategories(h.categories),
     meals,
     startDate: isoDate(h.start_date),
     plan: planRows.map((r) => ({ mealId: r.meal_id, day: r.day, made: r.made })),

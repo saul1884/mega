@@ -22,18 +22,6 @@ export function sql(): postgres.Sql {
   return globalForDb.sql;
 }
 
-export const DEFAULT_CATEGORIES = [
-  "Slow cooker specials",
-  "One pan weekday",
-  "Healthy AF",
-  "A little bit fancy",
-  "Weekend specials",
-  "BBQ",
-  "Solo night in",
-  "Obie meals",
-];
-
-export const OBIE_CATEGORY = "Obie meals";
 
 export function ensureSchema(): Promise<void> {
   if (!globalForDb.schemaReady) {
