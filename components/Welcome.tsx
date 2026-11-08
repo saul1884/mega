@@ -39,7 +39,7 @@ const CARDS: { title: string; text: string; bg: string; ink: string; art: string
 
 const ART_FILL = ["var(--rasp)", "var(--orange)", "var(--cream-text)", "var(--orange)"];
 
-export function Welcome({ lastLabel, onDone, onSkip }: { lastLabel: string; onDone: () => void; onSkip: () => void }) {
+export function Welcome({ lastLabel, onDone, onSkip, onLogin }: { lastLabel: string; onDone: () => void; onSkip: () => void; onLogin?: () => void }) {
   const [i, setI] = useState(0);
   const touchX = useRef<number | null>(null);
   const c = CARDS[i];
@@ -63,7 +63,7 @@ export function Welcome({ lastLabel, onDone, onSkip }: { lastLabel: string; onDo
       }}
     >
       <div className="toprow">
-        <span className="caps" style={{ fontSize: 12 }}>HOW MEGA WORKS</span>
+        <span className="caps" style={{ fontSize: 12 }}>{onLogin ? "WELCOME TO MEGA" : "HOW MEGA WORKS"}</span>
         <button type="button" className="btn-text" style={{ color: "inherit" }} onClick={onSkip}>SKIP</button>
       </div>
       <div className="welcome-art" aria-hidden="true">
@@ -87,6 +87,12 @@ export function Welcome({ lastLabel, onDone, onSkip }: { lastLabel: string; onDo
           )}
           <button type="button" className="btn btn-big welcome-next" onClick={next}>{last ? lastLabel : "NEXT"}</button>
         </div>
+        {onLogin && (
+          <p style={{ margin: 0, textAlign: "center", fontSize: 15 }}>
+            Already set up?{" "}
+            <button type="button" className="mname" style={{ display: "inline", textDecoration: "underline", fontSize: 15, color: "inherit" }} onClick={onLogin}>Log in</button>
+          </p>
+        )}
       </div>
     </div>
   );

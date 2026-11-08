@@ -467,7 +467,7 @@ export default function App() {
     return <div className="app" style={{ background: "var(--orange)", alignItems: "center", justifyContent: "center" }}><p className="caps">LOADING…</p></div>;
   }
   if (auth === "out" || !data) {
-    return <Login onDone={(mode) => { load(); if (mode === "signup") setWelcomeOpen(true); }} />;
+    return <SignedOut onDone={(mode) => { load(); if (mode === "signup") setTastesOpen(true); }} />;
   }
 
   // ---------- shared bits ----------
@@ -1165,8 +1165,32 @@ export default function App() {
   );
 }
 
-function Login({ onDone }: { onDone: (mode: "login" | "signup") => void }) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+const SEEN_KEY = "mega_seen_welcome";
+function seenWelcome(): boolean {
+  try {
+    return localStorage.getItem(SEEN_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+function markWelcomeSeen() {
+  try {
+    localStorage.setItem(SEEN_KEY, "1");
+  } catch {}
+}
+
+/** First visit on this phone: the welcome cards, then set up or log in. */
+function SignedOut({ onDone }: { onDone: (mode: "login" | "signup") => void }) {
+  const [stage, setStage] = useState<"welcome" | "login" | "signup">(() => (seenWelcome() ? "login" : "welcome"));
+  if (stage === "welcome") {
+    const to = (m: "login" | "signup") => { markWelcomeSeen(); setStage(m); };
+    return <Welcome lastLabel="SET UP YOUR HOUSEHOLD" onDone={() => to("signup")} onSkip={() => to("login")} onLogin={() => to("login")} />;
+  }
+  return <Login key={stage} initialMode={stage} onDone={onDone} />;
+}
+
+function Login({ onDone, initialMode = "login" }: { onDone: (mode: "login" | "signup") => void; initialMode?: "login" | "signup" }) {
+  const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [household, setHousehold] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
