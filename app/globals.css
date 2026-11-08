@@ -183,7 +183,7 @@ section[style*="border: 2px solid"] { border: 0 !important; background: #fff; bo
 
 /* Our tastes */
 .tastes { gap: 14px; }
-.dots { display: flex; gap: 6px; }
+.dots { display: flex; gap: 0; }
 .dots span { flex: 1; height: 4px; border-radius: 99px; background: rgba(42,15,28,.12); }
 .dots span.on { background: var(--rasp); }
 .stepper { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #fff; border-radius: 16px; padding: 10px 10px 10px 16px; box-shadow: 0 0 0 1px var(--line, rgba(42,15,28,.1)); }
@@ -202,7 +202,7 @@ section[style*="border: 2px solid"] { border: 0 !important; background: #fff; bo
 .recipe { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
 .rhead { display: flex; align-items: baseline; justify-content: space-between; }
 .rhead .sec { margin: 0; }
-.rmeta { display: flex; flex-wrap: wrap; gap: 6px; }
+.rmeta { display: flex; flex-wrap: wrap; gap: 0; }
 .rmeta span { background: #fff; box-shadow: 0 0 0 1px rgba(42,15,28,.1); border-radius: 99px; padding: 6px 11px; font-size: 13px; font-weight: 700; }
 .rnote { background: #fff; border-radius: 16px; padding: 12px 14px; font-size: 14px; line-height: 1.4; box-shadow: inset 4px 0 0 var(--orange), 0 0 0 1px rgba(42,15,28,.08); }
 .phase { font-family: var(--display); font-weight: 800; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--rasp); margin: 6px 0 -2px; }
@@ -214,3 +214,16 @@ section[style*="border: 2px solid"] { border: 0 !important; background: #fff; bo
 .rhint { font-size: 13px; color: var(--muted); margin: -4px 0 0; line-height: 1.4; }
 .rempty { background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 0 0 1px rgba(42,15,28,.08); display: flex; flex-direction: column; gap: 10px; }
 .okbar { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 700; color: #2f7a3d; background: #eaf6ec; border-radius: 12px; padding: 10px 12px; }
+
+/* ---------- Welcome cards (2026-11-08) ---------- */
+.welcome { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; gap: 18px; padding: max(18px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom)); transition: background-color .3s ease, color .3s ease; overflow-y: auto; }
+.welcome .toprow { display: flex; justify-content: space-between; align-items: center; }
+.welcome-art { flex: 1; min-height: 160px; display: flex; align-items: center; justify-content: center; gap: 0; }
+.welcome-copy { display: flex; flex-direction: column; gap: 12px; max-width: 460px; }
+.welcome-copy p { margin: 0; font-size: 18px; line-height: 1.45; }
+.welcome-foot { display: flex; flex-direction: column; gap: 16px; max-width: 460px; width: 100%; }
+.welcome .dots span { background: currentColor; opacity: .25; }
+.welcome .dots span.on { background: currentColor; opacity: 1; }
+.welcome-next { flex: 1; width: auto; background: var(--cream, #FFF4D6) !important; color: var(--ink) !important; box-shadow: none !important; border: 0 !important; }
+.welcome-back { color: inherit !important; background: rgba(255,255,255,.18) !important; }
+@media (min-width: 700px) { .welcome { align-items: center; } .welcome-copy, .welcome-foot { width: 100%; } }

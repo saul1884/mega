@@ -5,6 +5,7 @@ import type { AppState, Idea, Meal, PhotoResult } from "@/lib/types";
 import { addDays, daysBetween, lastMadeText, longLabel, shortDay, todayISO, weekRange } from "@/lib/dates";
 import { Icon, LoginArt, Thumb, shapeFor, tileClass } from "./icons";
 import { TastesFlow } from "./Tastes";
+import { Welcome } from "./Welcome";
 import { EMPTY_TASTES, type Tastes } from "@/lib/tastes";
 import { recipeToText, stepCount, type Recipe } from "@/lib/recipe";
 import { RecipeView } from "./Recipe";
@@ -108,6 +109,7 @@ export default function App() {
   const [startPick, setStartPick] = useState(todayISO());
   const [draft, setDraft] = useState<Draft | null>(null);
   const [tastesOpen, setTastesOpen] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [catSheet, setCatSheet] = useState<
     null | { mode: "manage" } | { mode: "add"; name: string; description: string } | { mode: "edit"; name: string; description: string }
   >(null);
@@ -436,7 +438,7 @@ export default function App() {
     return <div className="app" style={{ background: "var(--orange)", alignItems: "center", justifyContent: "center" }}><p className="caps">LOADING…</p></div>;
   }
   if (auth === "out" || !data) {
-    return <Login onDone={(mode) => { load(); if (mode === "signup") setTastesOpen(true); }} />;
+    return <Login onDone={(mode) => { load(); if (mode === "signup") setWelcomeOpen(true); }} />;
   }
 
   // ---------- shared bits ----------
@@ -569,9 +571,12 @@ export default function App() {
             <button type="button" className="btn-text" onClick={() => setCatSheet({ mode: "add", name: "", description: "" })}>+ NEW CATEGORY</button>
             <button type="button" className="btn-text" onClick={() => setCatSheet({ mode: "manage" })}>EDIT CATEGORIES</button>
           </div>
-          {data.tastes !== null && (
-            <button type="button" className="btn-text" onClick={() => setTastesOpen(true)}>{data.tastes.skipped ? "TELL US YOUR TASTES" : "OUR TASTES"}</button>
-          )}
+          <div className="btnrow" style={{ justifyContent: "center", gap: 18 }}>
+            {data.tastes !== null && (
+              <button type="button" className="btn-text" onClick={() => setTastesOpen(true)}>{data.tastes.skipped ? "TELL US YOUR TASTES" : "OUR TASTES"}</button>
+            )}
+            <button type="button" className="btn-text" onClick={() => setWelcomeOpen(true)}>HOW MEGA WORKS</button>
+          </div>
         </div>
       </>
     );
@@ -1022,6 +1027,13 @@ export default function App() {
             <button type="button" className="btn btn-rasp btn-big" disabled={busy || tidyBusy} onClick={async () => { setBusy(true); await saveDraft(); setBusy(false); }}>{busy ? "SAVING…" : "SAVE"}</button>
           </div>
         </div>
+      )}
+      {welcomeOpen && (
+        <Welcome
+          lastLabel={data.tastes === null ? "TELL US YOUR TASTES" : "DONE"}
+          onDone={() => { setWelcomeOpen(false); if (data.tastes === null) setTastesOpen(true); }}
+          onSkip={() => { setWelcomeOpen(false); if (data.tastes === null) setTastesOpen(true); }}
+        />
       )}
       {tastesOpen && (
         <TastesFlow
