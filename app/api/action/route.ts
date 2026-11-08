@@ -81,10 +81,13 @@ export async function POST(req: Request) {
       // Saving the same meal twice (e.g. an idea tapped twice) reuses the existing one.
       const existing = await db`select id, name from meals where household_id = ${hid}`;
       const dup = existing.find((r) => nameKey(r.name) === nameKey(a.name));
+      // An idea whose recipe was already opened keeps that recipe.
+      const [ir] = a.recipe || dup ? [] : await db`select recipe from idea_recipes where household_id = ${hid} and name_key = ${nameKey(a.name)}`;
+      const recipe = a.recipe ? capSteps(a.recipe) : (ir?.recipe ?? null);
       const [m] = dup ? [dup] : await db`
         insert into meals (household_id, name, tags, ingredients, stars, tried, obie, photo_url, recipe)
         values (${hid}, ${a.name}, ${db.json(a.tags)}, ${db.json(a.ingredients)}, ${a.stars ?? 0},
-                ${a.tried ?? false}, ${a.obie ?? null}, ${a.photoUrl ?? null}, ${a.recipe ? db.json(capSteps(a.recipe)) : null})
+                ${a.tried ?? false}, ${a.obie ?? null}, ${a.photoUrl ?? null}, ${recipe ? db.json(recipe) : null})
         returning id`;
       if (a.addToWeek) {
         await db`insert into plan_items (household_id, meal_id) values (${hid}, ${m.id}) on conflict do nothing`;

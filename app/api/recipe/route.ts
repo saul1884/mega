@@ -2,7 +2,7 @@ import type { Tastes } from "@/lib/tastes";
 import { normalizeCategories } from "@/lib/categories";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ensureSchema, sql } from "@/lib/db";
+import { ensureSchema, nameKey, sql } from "@/lib/db";
 import { getHouseholdId } from "@/lib/auth";
 import { writeRecipe } from "@/lib/ai";
 import { loadState } from "@/lib/state";
@@ -11,6 +11,8 @@ export const maxDuration = 120;
 
 const list = z.array(z.string().trim().min(1).max(120)).max(40);
 const Body = z.union([
+  // Recipe for an AI idea that isn't saved yet. Kept, so it opens instantly next time and moves over when saved.
+  z.object({ idea: z.object({ name: z.string().trim().min(1).max(120), tags: list, ingredients: list }) }),
   // Write a recipe for a saved meal (AI ideas, or older meals) and store it.
   z.object({ mealId: z.string().uuid() }),
   // Tidy the household's own recipe text into steps. Not stored: the edit sheet saves it.
@@ -29,10 +31,25 @@ export async function POST(req: Request) {
   const kidsCats = new Set(normalizeCategories(h?.categories).filter((c) => c.kids).map((c) => c.name));
 
   try {
+    if ("idea" in parsed.data) {
+      const { name, tags, ingredients } = parsed.data.idea;
+      const [hit] = await db`select recipe from idea_recipes where household_id = ${hid} and name_key = ${nameKey(name)}`;
+      if (hit) return NextResponse.json({ recipe: hit.recipe });
+      const out = await writeRecipe({ name, ingredients, tags, kids: tags.some((t) => kidsCats.has(t)), tastes });
+      if (!out) throw new Error("No recipe came back");
+      await db`insert into idea_recipes (household_id, name_key, recipe) values (${hid}, ${nameKey(name)}, ${db.json(out.recipe)}) on conflict do nothing`;
+      return NextResponse.json({ recipe: out.recipe });
+    }
+
     if ("mealId" in parsed.data) {
       const [m] = await db`select id, name, tags, ingredients, recipe from meals where id = ${parsed.data.mealId} and household_id = ${hid}`;
       if (!m) return NextResponse.json({ error: "That meal has gone." }, { status: 404 });
       if (!m.recipe) {
+        const [hit] = await db`select recipe from idea_recipes where household_id = ${hid} and name_key = ${nameKey(m.name)}`;
+        if (hit) await db`update meals set recipe = ${db.json(hit.recipe)} where id = ${m.id} and recipe is null`;
+      }
+      const [again] = await db`select recipe from meals where id = ${m.id}`;
+      if (!again?.recipe) {
         const tags: string[] = m.tags ?? [];
         const out = await writeRecipe({ name: m.name, ingredients: m.ingredients ?? [], tags, kids: tags.some((t) => kidsCats.has(t)), tastes });
         if (!out) throw new Error("No recipe came back");

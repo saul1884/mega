@@ -227,3 +227,6 @@ section[style*="border: 2px solid"] { border: 0 !important; background: #fff; bo
 .welcome-next { flex: 1; width: auto; background: var(--cream, #FFF4D6) !important; color: var(--ink) !important; box-shadow: none !important; border: 0 !important; }
 .welcome-back { color: inherit !important; background: rgba(255,255,255,.18) !important; }
 @media (min-width: 700px) { .welcome { align-items: center; } .welcome-copy, .welcome-foot { width: 100%; } }
+.idea-open { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 6px; -webkit-tap-highlight-color: transparent; }
+.idea-open:focus-visible { outline: 2px solid var(--rasp); outline-offset: 4px; border-radius: 8px; }
+.idea-link { font-family: var(--display); font-weight: 800; font-size: 11px; letter-spacing: .14em; color: var(--rasp); }

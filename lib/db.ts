@@ -55,6 +55,14 @@ export function ensureSchema(): Promise<void> {
       await db`create index if not exists meals_household on meals(household_id)`;
       await db`alter table meals add column if not exists recipe jsonb`;
       await db`
+        create table if not exists idea_recipes (
+          household_id int not null references households(id) on delete cascade,
+          name_key text not null,
+          recipe jsonb not null,
+          created_at timestamptz not null default now(),
+          primary key (household_id, name_key)
+        )`;
+      await db`
         create table if not exists dismissed (
           household_id int not null references households(id) on delete cascade,
           name_key text not null,

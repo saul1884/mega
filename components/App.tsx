@@ -117,6 +117,10 @@ export default function App() {
   const [recipeBusy, setRecipeBusy] = useState<Record<string, boolean>>({});
   const [recipeError, setRecipeError] = useState<Record<string, string>>({});
   const [tidyBusy, setTidyBusy] = useState(false);
+  const [ideaOpen, setIdeaOpen] = useState<Idea | null>(null);
+  const [ideaRecipes, setIdeaRecipes] = useState<Record<string, Recipe>>({});
+  const [ideaRecipeBusy, setIdeaRecipeBusy] = useState<Record<string, boolean>>({});
+  const [ideaRecipeError, setIdeaRecipeError] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const inFlight = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -341,14 +345,38 @@ export default function App() {
     }
   };
 
+  const openIdea = async (idea: Idea) => {
+    setIdeaOpen(idea);
+    const k = key(idea.name);
+    if (ideaRecipes[k] || ideaRecipeBusy[k]) return;
+    setIdeaRecipeBusy((s) => ({ ...s, [k]: true }));
+    setIdeaRecipeError((s) => ({ ...s, [k]: "" }));
+    try {
+      const r = await fetch("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea: { name: idea.name, tags: idea.tags, ingredients: idea.ingredients } }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Couldn't get the recipe");
+      setIdeaRecipes((s) => ({ ...s, [k]: j.recipe as Recipe }));
+    } catch (e) {
+      setIdeaRecipeError((s) => ({ ...s, [k]: (e as Error).message }));
+    } finally {
+      setIdeaRecipeBusy((s) => ({ ...s, [k]: false }));
+    }
+  };
+
   const dropIdea = (idea: Idea) => {
     setIdeas((s) => Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.filter((i) => i.name !== idea.name)])));
     setMoodIdeas((s) => s.filter((i) => i.name !== idea.name));
   };
   const saveIdea = async (idea: Idea, addToWeek: boolean) => {
     dropIdea(idea);
+    setIdeaOpen(null);
+    const known = ideaRecipes[key(idea.name)];
     const s = await act(
-      { type: "addMeal", name: idea.name, tags: idea.tags, ingredients: idea.ingredients, obie: idea.obie ?? null, tried: false, addToWeek },
+      { type: "addMeal", name: idea.name, tags: idea.tags, ingredients: idea.ingredients, obie: idea.obie ?? null, tried: false, addToWeek, ...(known ? { recipe: known } : {}) },
       addToWeek ? "Added to this week and saved to your meals" : "Saved to your meals as Not tried yet",
     );
     const saved = s?.meals.find((m) => key(m.name) === key(idea.name));
@@ -356,6 +384,7 @@ export default function App() {
   };
   const nopeIdea = async (idea: Idea) => {
     dropIdea(idea);
+    setIdeaOpen(null);
     await act({ type: "dismissIdea", name: idea.name }, "Got it. We won’t suggest that again.");
   };
 
@@ -483,10 +512,13 @@ export default function App() {
     <article className="card dashed top">
       <Thumb tag={idea.tags[0]} size={44} />
       <div className="col" style={{ gap: 6 }}>
-        <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.2 }}>{idea.name}</span>
-        <span className="tagline">{idea.obie ? `Obie · ${idea.obie}` : idea.tags.join(" · ")}</span>
-        {idea.blurb && <span className="small">{idea.blurb}</span>}
-        <span className="muted">{idea.ingredients.join(", ")}</span>
+        <button type="button" className="idea-open" onClick={() => openIdea(idea)} aria-label={`See the recipe for ${idea.name}`}>
+          <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.2 }}>{idea.name}</span>
+          <span className="tagline">{idea.obie ? `Obie · ${idea.obie}` : idea.tags.join(" · ")}</span>
+          {idea.blurb && <span className="small">{idea.blurb}</span>}
+          <span className="muted">{idea.ingredients.join(", ")}</span>
+          <span className="idea-link">SEE THE RECIPE →</span>
+        </button>
         <div className="btnrow">
           <button type="button" className="btn btn-rasp btn-sm" onClick={() => saveIdea(idea, true)}>+ THIS WEEK</button>
           <button type="button" className="btn btn-line btn-sm" onClick={() => saveIdea(idea, false)}>SAVE</button>
@@ -1028,6 +1060,43 @@ export default function App() {
           </div>
         </div>
       )}
+      {ideaOpen && (() => {
+        const k = key(ideaOpen.name);
+        const rec = ideaRecipes[k];
+        return (
+          <div className="sheet" role="dialog" aria-modal="true" aria-label={ideaOpen.name} onClick={(e) => e.target === e.currentTarget && setIdeaOpen(null)}>
+            <div className="sheet-body">
+              <div className="toprow">
+                <span className="lbl" style={{ color: "var(--rasp)" }}>NEW IDEA</span>
+                <button type="button" className="iconbtn" aria-label="Close" onClick={() => setIdeaOpen(null)}><Icon.x /></button>
+              </div>
+              <h2 className="h1" style={{ fontSize: 28 }}>{ideaOpen.name}</h2>
+              <span className="tagline">{ideaOpen.obie ? `Kids · ${ideaOpen.obie}` : ideaOpen.tags.join(" · ")}</span>
+              {ideaOpen.blurb && <p className="small" style={{ margin: 0 }}>{ideaOpen.blurb}</p>}
+              <h3 className="sec">MAIN INGREDIENTS</h3>
+              <div>{ideaOpen.ingredients.map((i) => <div key={i} className="ing"><span className="dot" />{i}</div>)}</div>
+              {rec ? (
+                <RecipeView recipe={rec} />
+              ) : ideaRecipeBusy[k] ? (
+                <div className="rempty" role="status" aria-live="polite">
+                  <span className="small" style={{ fontWeight: 700, display: "flex", gap: 8, alignItems: "center" }}><span className="spinner" aria-hidden="true" />Writing the recipe…</span>
+                  <span className="muted" style={{ fontSize: 13 }}>Usually takes 10–20 seconds. Next time it opens straight away.</span>
+                </div>
+              ) : (
+                <div className="rempty">
+                  <span className="muted" style={{ fontSize: 14 }}>{ideaRecipeError[k] || "Couldn't load the recipe."}</span>
+                  <button type="button" className="btn btn-line" onClick={() => openIdea(ideaOpen)}>TRY AGAIN</button>
+                </div>
+              )}
+              <div className="btnrow" style={{ flexWrap: "nowrap", marginTop: 4 }}>
+                <button type="button" className="btn btn-rasp" style={{ flex: 1 }} onClick={() => saveIdea(ideaOpen, true)}>+ THIS WEEK</button>
+                <button type="button" className="btn btn-line" style={{ flex: 1 }} onClick={() => saveIdea(ideaOpen, false)}>SAVE</button>
+              </div>
+              <button type="button" className="btn-text" onClick={() => nopeIdea(ideaOpen)}>NOT FOR US</button>
+            </div>
+          </div>
+        );
+      })()}
       {welcomeOpen && (
         <Welcome
           lastLabel={data.tastes === null ? "TELL US YOUR TASTES" : "DONE"}
