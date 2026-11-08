@@ -18,7 +18,7 @@ export async function loadState(hid: number): Promise<AppState | null> {
   const [h] = await db`select name, categories, tastes, start_date::text as start_date from households where id = ${hid}`;
   if (!h) return null;
   const [mealRows, planRows, checkRows, extraRows] = await Promise.all([
-    db`select id, name, tags, ingredients, stars, tried, last_made::text as last_made, obie, photo_url
+    db`select id, name, tags, ingredients, stars, tried, last_made::text as last_made, obie, photo_url, recipe
        from meals where household_id = ${hid} order by created_at`,
     db`select meal_id, day, made from plan_items where household_id = ${hid} order by added_at`,
     db`select name_key from shop_checks where household_id = ${hid}`,
@@ -34,6 +34,7 @@ export async function loadState(hid: number): Promise<AppState | null> {
     lastMade: isoDate(r.last_made),
     obie: r.obie ?? null,
     photoUrl: r.photo_url ?? null,
+    recipe: r.recipe ?? null,
   }));
   return {
     household: h.name,

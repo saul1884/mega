@@ -6,6 +6,8 @@ import { addDays, daysBetween, lastMadeText, longLabel, shortDay, todayISO, week
 import { Icon, LoginArt, Thumb, shapeFor, tileClass } from "./icons";
 import { TastesFlow } from "./Tastes";
 import { EMPTY_TASTES, type Tastes } from "@/lib/tastes";
+import { recipeToText, stepCount, type Recipe } from "@/lib/recipe";
+import { RecipeView } from "./Recipe";
 
 type Screen = "home" | "meals" | "meal" | "inspo" | "basket" | "plan" | "shop";
 type Auth = "loading" | "out" | "in";
@@ -17,6 +19,10 @@ type Draft = {
   obie: "Lunch" | "Dinner";
   photoUrl: string | null;
   addToWeek: boolean;
+  recipe: Recipe | null;
+  recipeText: string;
+  tidied?: boolean; // just tidied in this sheet, so show the "done" note
+  origRecipe?: Recipe | null; // what the meal had when the sheet opened, so an unchanged recipe isn't re-sent
 };
 
 const MOODS = ["Spicy", "BBQ", "Quick", "Cosy", "Healthy", "Fancy"];
@@ -106,6 +112,9 @@ export default function App() {
     null | { mode: "manage" } | { mode: "add"; name: string; description: string } | { mode: "edit"; name: string; description: string }
   >(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [recipeBusy, setRecipeBusy] = useState<Record<string, boolean>>({});
+  const [recipeError, setRecipeError] = useState<Record<string, string>>({});
+  const [tidyBusy, setTidyBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const inFlight = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,7 +156,7 @@ export default function App() {
   }, [auth, load]);
 
   const act = useCallback(
-    async (payload: Record<string, unknown>, msg?: string) => {
+    async (payload: Record<string, unknown>, msg?: string): Promise<AppState | null> => {
       inFlight.current += 1;
       try {
         const r = await fetch("/api/action", {
@@ -155,12 +164,21 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (r.status === 401) return setAuth("out");
-        if (!r.ok) return flash("Something went wrong. Try again.");
-        setData((await r.json()) as AppState);
+        if (r.status === 401) {
+          setAuth("out");
+          return null;
+        }
+        if (!r.ok) {
+          flash("Something went wrong. Try again.");
+          return null;
+        }
+        const s = (await r.json()) as AppState;
+        setData(s);
         if (msg) flash(msg);
+        return s;
       } catch {
         flash("You seem to be offline. Try again.");
+        return null;
       } finally {
         inFlight.current -= 1;
       }
@@ -274,16 +292,65 @@ export default function App() {
     }
   };
 
+  // Writes and stores a recipe for a saved meal (AI ideas get one as soon as they're saved).
+  const writeRecipeFor = useCallback(async (id: string) => {
+    setRecipeBusy((s) => ({ ...s, [id]: true }));
+    setRecipeError((s) => ({ ...s, [id]: "" }));
+    inFlight.current += 1;
+    try {
+      const r = await fetch("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mealId: id }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Couldn't write the recipe");
+      setData(j as AppState);
+    } catch (e) {
+      setRecipeError((s) => ({ ...s, [id]: (e as Error).message }));
+    } finally {
+      inFlight.current -= 1;
+      setRecipeBusy((s) => ({ ...s, [id]: false }));
+    }
+  }, []);
+
+  const tidyRecipe = async () => {
+    if (!draft) return null;
+    const text = draft.recipeText.trim();
+    if (text.length < 10) {
+      flash("Add a bit more of the recipe first.");
+      return null;
+    }
+    setTidyBusy(true);
+    try {
+      const r = await fetch("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, name: draft.name.trim(), tags: draft.tags, ingredients: draft.ingredients.split(/\n|,/).map((x) => x.trim()).filter(Boolean).slice(0, 40) }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Couldn't tidy that recipe");
+      const recipe = j.recipe as Recipe;
+      const shopping = (j.shopping as string[]) ?? [];
+      const next: Draft = { ...draft, recipe, recipeText: "", tidied: true, ingredients: draft.ingredients.trim() ? draft.ingredients : shopping.join("\n") };
+      setDraft(next);
+      return next;
+    } catch (e) {
+      flash((e as Error).message);
+      return null;
+    } finally {
+      setTidyBusy(false);
+    }
+  };
+
   const dropIdea = (idea: Idea) => {
     setIdeas((s) => Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.filter((i) => i.name !== idea.name)])));
     setMoodIdeas((s) => s.filter((i) => i.name !== idea.name));
   };
   const saveIdea = async (idea: Idea, addToWeek: boolean) => {
     dropIdea(idea);
-    await act(
+    const s = await act(
       { type: "addMeal", name: idea.name, tags: idea.tags, ingredients: idea.ingredients, obie: idea.obie ?? null, tried: false, addToWeek },
       addToWeek ? "Added to this week and saved to your meals" : "Saved to your meals as Not tried yet",
     );
+    const saved = s?.meals.find((m) => key(m.name) === key(idea.name));
+    if (saved && !saved.recipe) writeRecipeFor(saved.id);
   };
   const nopeIdea = async (idea: Idea) => {
     dropIdea(idea);
@@ -306,14 +373,32 @@ export default function App() {
       const res = j as PhotoResult;
       if (!res.isRecipe) flash("Couldn't spot a recipe in that. Fill it in below.");
       else setToast("");
-      setDraft({
-        name: res.name,
-        tags: res.tags.length ? res.tags : cat !== "All" ? [cat] : [],
-        ingredients: res.ingredients.join("\n"),
-        obie: "Dinner",
-        photoUrl: res.photoUrl,
-        addToWeek: false,
-      });
+      if (draft) {
+        // Photo taken from inside the add/edit sheet: keep what's there, fill the gaps.
+        setDraft({
+          ...draft,
+          name: draft.name.trim() ? draft.name : res.name,
+          tags: draft.tags.length ? draft.tags : res.tags,
+          ingredients: draft.ingredients.trim() ? draft.ingredients : res.ingredients.join("\n"),
+          photoUrl: draft.photoUrl ?? res.photoUrl,
+          recipe: res.recipe ?? draft.recipe,
+          recipeText: res.recipe ? "" : draft.recipeText,
+          tidied: !!res.recipe,
+        });
+        if (res.isRecipe && !res.recipe) flash("Couldn't spot the steps in that photo.");
+      } else {
+        setDraft({
+          name: res.name,
+          tags: res.tags.length ? res.tags : cat !== "All" ? [cat] : [],
+          ingredients: res.ingredients.join("\n"),
+          obie: "Dinner",
+          photoUrl: res.photoUrl,
+          addToWeek: false,
+          recipe: res.recipe,
+          recipeText: "",
+          tidied: !!res.recipe,
+        });
+      }
     } catch (e) {
       flash((e as Error).message);
     } finally {
@@ -324,16 +409,23 @@ export default function App() {
 
   const saveDraft = async () => {
     if (!draft) return;
-    const name = draft.name.trim();
+    // Recipe typed but not tidied yet: tidy it first, then save.
+    let d: Draft = draft;
+    if (!d.recipe && d.recipeText.trim()) {
+      const next = await tidyRecipe();
+      if (!next) return;
+      d = next;
+    }
+    const name = d.name.trim();
     if (!name) return flash("Give the meal a name first.");
-    const ingredients = draft.ingredients.split(/\n|,/).map((s) => s.trim()).filter(Boolean);
-    const obie = isKids(draft.tags) ? draft.obie : null;
-    if (draft.id) {
-      await act({ type: "updateMeal", id: draft.id, name, tags: draft.tags, ingredients }, "Saved");
+    const ingredients = d.ingredients.split(/\n|,/).map((s) => s.trim()).filter(Boolean);
+    const obie = isKids(d.tags) ? d.obie : null;
+    if (d.id) {
+      await act({ type: "updateMeal", id: d.id, name, tags: d.tags, ingredients, ...(d.recipe !== d.origRecipe ? { recipe: d.recipe } : {}) }, "Saved");
     } else {
       await act(
-        { type: "addMeal", name, tags: draft.tags, ingredients, obie, photoUrl: draft.photoUrl, tried: false, addToWeek: draft.addToWeek },
-        draft.addToWeek ? "Saved and added to this week" : "Saved to your meals",
+        { type: "addMeal", name, tags: d.tags, ingredients, obie, photoUrl: d.photoUrl, tried: false, addToWeek: d.addToWeek, recipe: d.recipe },
+        d.addToWeek ? "Saved and added to this week" : "Saved to your meals",
       );
     }
     setDraft(null);
@@ -411,7 +503,7 @@ export default function App() {
     </button>
   );
 
-  const newDraft = (): Draft => ({ name: "", tags: cat !== "All" ? [cat] : [], ingredients: "", obie: "Dinner", photoUrl: null, addToWeek: false });
+  const newDraft = (): Draft => ({ name: "", tags: cat !== "All" ? [cat] : [], ingredients: "", obie: "Dinner", photoUrl: null, addToWeek: false, recipe: null, recipeText: "" });
 
   // ---------- screens ----------
   let body: React.ReactNode = null;
@@ -586,10 +678,31 @@ export default function App() {
               {m.ingredients.map((i) => <div key={i} className="ing"><span className="dot" />{i}</div>)}
               {m.ingredients.length === 0 && <p className="muted">No ingredients yet. Tap Edit to add some.</p>}
             </div>
+            {m.recipe ? (
+              <RecipeView recipe={m.recipe} />
+            ) : (
+              <>
+                <h2 className="sec">THE RECIPE</h2>
+                {recipeBusy[m.id] ? (
+                  <div className="rempty" role="status" aria-live="polite">
+                    <span className="small" style={{ fontWeight: 700, display: "flex", gap: 8, alignItems: "center" }}><span className="spinner" aria-hidden="true" />Writing a simple recipe…</span>
+                    <span className="muted" style={{ fontSize: 13 }}>Usually takes 10–20 seconds.</span>
+                  </div>
+                ) : (
+                  <div className="rempty">
+                    <span className="muted" style={{ fontSize: 14 }}>{recipeError[m.id] || "No recipe yet. We can write a simple one, or you can add your own."}</span>
+                    <div className="btnrow" style={{ flexWrap: "nowrap" }}>
+                      <button type="button" className="btn btn-rasp" style={{ flex: 1 }} onClick={() => writeRecipeFor(m.id)}>WRITE ONE</button>
+                      <button type="button" className="btn btn-line" style={{ flex: 1 }} onClick={() => setDraft({ id: m.id, name: m.name, tags: m.tags, ingredients: m.ingredients.join("\n"), obie: m.obie ?? "Dinner", photoUrl: m.photoUrl, addToWeek: false, recipe: null, recipeText: "", origRecipe: null })}>ADD OUR OWN</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <button type="button" className={d.inWeek ? "btn btn-ink btn-big" : "btn btn-rasp btn-big"} style={{ marginTop: 6 }} onClick={() => act({ type: "toggleWeek", mealId: m.id }, d.inWeek ? "Removed from this week" : "Added to this week")}>
               {d.inWeek ? "IN THIS WEEK ✓" : "ADD TO THIS WEEK"}
             </button>
-            <button type="button" className="btn btn-line" onClick={() => setDraft({ id: m.id, name: m.name, tags: m.tags, ingredients: m.ingredients.join("\n"), obie: m.obie ?? "Dinner", photoUrl: m.photoUrl, addToWeek: false })}>EDIT</button>
+            <button type="button" className="btn btn-line" onClick={() => setDraft({ id: m.id, name: m.name, tags: m.tags, ingredients: m.ingredients.join("\n"), obie: m.obie ?? "Dinner", photoUrl: m.photoUrl, addToWeek: false, recipe: m.recipe, recipeText: "", origRecipe: m.recipe })}>EDIT</button>
             <button
               type="button"
               className="btn-text"
@@ -877,13 +990,36 @@ export default function App() {
             )}
             <label htmlFor="ding" className="lbl">MAIN INGREDIENTS (ONE PER LINE)</label>
             <textarea id="ding" className="field" value={draft.ingredients} onChange={(e) => setDraft({ ...draft, ingredients: e.target.value })} placeholder={"Chicken thighs\nHarissa paste\nRed onion"} />
+            {draft.recipe ? (
+              <>
+                <span className="lbl">RECIPE</span>
+                {draft.tidied && (
+                  <div className="okbar" role="status">✓ Tidied into {stepCount(draft.recipe)} steps{draft.recipe.style === "slow_cooker" ? ". Spotted it’s a slow cooker meal." : draft.recipe.style === "one_pan" ? ". Spotted it’s a one pan meal." : "."}</div>
+                )}
+                <RecipeView recipe={draft.recipe} compact />
+                <div className="btnrow" style={{ flexWrap: "nowrap" }}>
+                  <button type="button" className="btn btn-line" style={{ flex: 1 }} onClick={() => setDraft({ ...draft, recipeText: recipeToText(draft.recipe!), recipe: null, tidied: false })}>EDIT STEPS</button>
+                  <button type="button" className="btn btn-line" style={{ flex: 1 }} onClick={() => { if (window.confirm("Remove this recipe?")) setDraft({ ...draft, recipe: null, recipeText: "", tidied: false }); }}>REMOVE</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label htmlFor="drecipe" className="lbl">RECIPE (OPTIONAL)</label>
+                <p className="rhint">Paste it, type it however you like, or take a photo. We’ll tidy it into simple numbered steps.</p>
+                <textarea id="drecipe" className="field" style={{ minHeight: 150 }} value={draft.recipeText} onChange={(e) => setDraft({ ...draft, recipeText: e.target.value })} placeholder="e.g. Brown the mince, add a tin of tomatoes and simmer 20 min…" />
+                <div className="btnrow" style={{ flexWrap: "nowrap" }}>
+                  <button type="button" className="btn btn-line" style={{ flex: 1 }} disabled={photoBusy || tidyBusy} onClick={() => fileRef.current?.click()}>{photoBusy ? <><span className="spinner" aria-hidden="true" /> READING…</> : <><Icon.camera /> PHOTO</>}</button>
+                  <button type="button" className="btn btn-rasp" style={{ flex: 1.4 }} disabled={tidyBusy || photoBusy || draft.recipeText.trim().length < 10} onClick={tidyRecipe}>{tidyBusy ? <><span className="spinner" aria-hidden="true" /> TIDYING…</> : "TIDY INTO STEPS"}</button>
+                </div>
+              </>
+            )}
             {!draft.id && (
               <label className="btnrow small" style={{ fontWeight: 700 }}>
                 <input type="checkbox" checked={draft.addToWeek} onChange={(e) => setDraft({ ...draft, addToWeek: e.target.checked })} style={{ width: 22, height: 22 }} />
                 Add to this week too
               </label>
             )}
-            <button type="button" className="btn btn-rasp btn-big" disabled={busy} onClick={async () => { setBusy(true); await saveDraft(); setBusy(false); }}>SAVE</button>
+            <button type="button" className="btn btn-rasp btn-big" disabled={busy || tidyBusy} onClick={async () => { setBusy(true); await saveDraft(); setBusy(false); }}>{busy ? "SAVING…" : "SAVE"}</button>
           </div>
         </div>
       )}

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ensureSchema, nameKey, sql } from "@/lib/db";
 import { getHouseholdId } from "@/lib/auth";
 import { loadState } from "@/lib/state";
+import { capSteps, RecipeInput } from "@/lib/recipe";
 
 const name = z.string().trim().min(1).max(120);
 const list = z.array(z.string().trim().min(1).max(120)).max(40);
@@ -21,6 +22,7 @@ const Action = z.discriminatedUnion("type", [
     tried: z.boolean().optional(),
     stars: z.number().int().min(0).max(5).optional(),
     addToWeek: z.boolean().optional(),
+    recipe: RecipeInput.nullable().optional(),
   }),
   z.object({
     type: z.literal("updateMeal"),
@@ -29,6 +31,7 @@ const Action = z.discriminatedUnion("type", [
     tags: list.optional(),
     ingredients: list.optional(),
     stars: z.number().int().min(0).max(5).optional(),
+    recipe: RecipeInput.nullable().optional(),
   }),
   z.object({ type: z.literal("removeMeal"), id: uuid }),
   z.object({ type: z.literal("dismissIdea"), name }),
@@ -79,9 +82,9 @@ export async function POST(req: Request) {
       const existing = await db`select id, name from meals where household_id = ${hid}`;
       const dup = existing.find((r) => nameKey(r.name) === nameKey(a.name));
       const [m] = dup ? [dup] : await db`
-        insert into meals (household_id, name, tags, ingredients, stars, tried, obie, photo_url)
+        insert into meals (household_id, name, tags, ingredients, stars, tried, obie, photo_url, recipe)
         values (${hid}, ${a.name}, ${db.json(a.tags)}, ${db.json(a.ingredients)}, ${a.stars ?? 0},
-                ${a.tried ?? false}, ${a.obie ?? null}, ${a.photoUrl ?? null})
+                ${a.tried ?? false}, ${a.obie ?? null}, ${a.photoUrl ?? null}, ${a.recipe ? db.json(capSteps(a.recipe)) : null})
         returning id`;
       if (a.addToWeek) {
         await db`insert into plan_items (household_id, meal_id) values (${hid}, ${m.id}) on conflict do nothing`;
@@ -93,6 +96,7 @@ export async function POST(req: Request) {
       if (a.name !== undefined) await db`update meals set name = ${a.name} where id = ${a.id}`;
       if (a.tags !== undefined) await db`update meals set tags = ${db.json(a.tags)} where id = ${a.id}`;
       if (a.ingredients !== undefined) await db`update meals set ingredients = ${db.json(a.ingredients)} where id = ${a.id}`;
+      if (a.recipe !== undefined) await db`update meals set recipe = ${a.recipe ? db.json(capSteps(a.recipe)) : null} where id = ${a.id}`;
       if (a.stars !== undefined) await db`update meals set stars = ${a.stars}, tried = true where id = ${a.id}`;
       break;
     }

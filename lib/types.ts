@@ -1,5 +1,8 @@
 import type { Category } from "./categories";
 import type { Tastes } from "./tastes";
+import type { Recipe } from "./recipe";
+
+export type { Recipe };
 
 export type { Category };
 
@@ -13,6 +16,7 @@ export type Meal = {
   lastMade: string | null; // YYYY-MM-DD
   obie: "Lunch" | "Dinner" | null;
   photoUrl: string | null;
+  recipe: Recipe | null;
 };
 
 export type PlanItem = { mealId: string; day: number | null; made: boolean };
@@ -44,4 +48,5 @@ export type PhotoResult = {
   ingredients: string[];
   tags: string[];
   photoUrl: string | null;
+  recipe: Recipe | null;
 };
